@@ -1,0 +1,84 @@
+# stig-api-scanner configuration
+# Reference: DISA Application Programming Interface (API) Security Requirements Guide V1R0.1
+# Copy to config.yaml and fill in your values.
+# Env vars can be injected with ${VAR_NAME} syntax.
+
+# ── Target ──────────────────────────────────────────────────────────────────
+target:
+  base_url: "https://api.example.com"
+  timeout_seconds: 30
+  verify_tls: true              # set false only for self-signed certs in dev
+  extra_headers:
+    Accept: "application/json"
+    # X-Custom-Header: "value"
+
+# ── Authentication ───────────────────────────────────────────────────────────
+# type: none | bearer | api_key | basic
+auth:
+  type: bearer
+  bearer_token: "${API_BEARER_TOKEN}"   # export API_BEARER_TOKEN=...
+
+  # API key variant:
+  # type: api_key
+  # api_key_header: "X-API-Key"
+  # api_key: "${API_KEY}"
+
+  # Basic auth variant:
+  # type: basic
+  # username: "${API_USERNAME}"
+  # password: "${API_PASSWORD}"
+
+# ── Endpoints to scan ────────────────────────────────────────────────────────
+# List the API endpoints to probe. Each check will be applied to the relevant paths.
+endpoints:
+  - path: "/api/v1/users"
+    methods: ["GET", "POST"]
+    auth_required: true
+    tags: ["users", "crud"]
+
+  - path: "/api/v1/health"
+    methods: ["GET"]
+    auth_required: false
+    tags: ["health", "public"]
+
+  - path: "/api/v1/admin/config"
+    methods: ["GET"]
+    auth_required: true
+    tags: ["admin", "privileged"]
+    skip_checks: []             # list check names to skip for this endpoint
+
+# ── Check configuration ───────────────────────────────────────────────────────
+checks:
+  transport: true               # V-274710, V-274497, V-274600
+  cors: true                    # V-274613
+  auth: true                    # V-274557, V-274507, V-274559, V-274643, V-274672, V-274679
+  tokens: true                  # V-274678, V-274680, V-274681, V-274712, V-274603, V-274606, V-274783
+  rate_limiting: true           # V-274612, V-274682, V-274525, V-274526
+  input_validation: true        # V-274714, V-274715, V-274767
+  error_handling: true          # V-274615
+  cache: true                   # V-274607, V-274709, V-274677
+  headers: true                 # security response headers
+
+  # CORS: explicit allowlist of approved origins.
+  # Leave empty to flag any ACAO response as a potential finding.
+  allowed_origins:
+    - "https://app.example.com"
+    - "https://admin.example.com"
+
+  # Active rate-limit probe: set > 0 to send N rapid requests and check for HTTP 429.
+  # WARNING: this generates real load on the target. Use with care in production.
+  rate_limit_probe_count: 0     # e.g. 50 to probe
+
+# ── Report output ─────────────────────────────────────────────────────────────
+report:
+  format: text                  # text | json | sarif | junit
+  output_file: ~                # null = stdout; or e.g. "stig-report.json"
+  include_passed: false         # set true to see all checks, not just failures
+  verbose: false                # print fix text and extra detail for all findings
+
+# ── Pipeline / CI integration ─────────────────────────────────────────────────
+pipeline:
+  # Exit non-zero if any FAIL finding meets or exceeds this severity.
+  # critical | high | medium | low | info
+  fail_severity: high
+  exit_code_on_fail: 1
