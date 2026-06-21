@@ -180,9 +180,12 @@ impl<'a> Reporter<'a> {
     // ── SARIF 2.1.0 ──────────────────────────────────────────────────────────
 
     fn report_sarif(&self, mut out: Box<dyn Write>, result: &ScanResult) -> Result<()> {
+        // Deduplicate rules by stig_id — multiple findings can share the same control ID.
+        let mut seen_ids = std::collections::HashSet::new();
         let rules: Vec<serde_json::Value> = result
             .findings
             .iter()
+            .filter(|f| seen_ids.insert(f.stig_id.clone()))
             .map(|f| {
                 serde_json::json!({
                     "id": f.stig_id,
@@ -205,13 +208,17 @@ impl<'a> Reporter<'a> {
             .map(|f| {
                 let kind = sarif_kind(&f.status);
                 let level = sarif_level(&f.severity);
+                // Build message text: include fix advice so it surfaces in the Security tab.
+                let msg = format!(
+                    "{} | Fix: {}",
+                    f.evidence.as_deref().unwrap_or(&f.title),
+                    f.fix
+                );
                 serde_json::json!({
                     "ruleId": f.stig_id,
                     "kind": kind,
                     "level": level,
-                    "message": {
-                        "text": f.evidence.as_deref().unwrap_or(&f.title)
-                    },
+                    "message": { "text": msg },
                     "locations": f.endpoint.as_ref().map(|ep| {
                         serde_json::json!([{
                             "logicalLocations": [{
@@ -219,10 +226,7 @@ impl<'a> Reporter<'a> {
                                 "kind": "namespace"
                             }]
                         }])
-                    }).unwrap_or(serde_json::json!([])),
-                    "fixes": [{
-                        "description": { "text": f.fix }
-                    }]
+                    }).unwrap_or(serde_json::json!([]))
                 })
             })
             .collect();
