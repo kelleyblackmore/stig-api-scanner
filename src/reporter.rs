@@ -214,19 +214,30 @@ impl<'a> Reporter<'a> {
                     f.evidence.as_deref().unwrap_or(&f.title),
                     f.fix
                 );
+                // GitHub Code Scanning requires at least one physicalLocation per result.
+                // For an API scanner there is no source file; use the config as the anchor URI
+                // and carry the actual API endpoint in logicalLocations.
+                let endpoint_name = f
+                    .endpoint
+                    .as_deref()
+                    .unwrap_or(&self.config.target.base_url);
                 serde_json::json!({
                     "ruleId": f.stig_id,
                     "kind": kind,
                     "level": level,
                     "message": { "text": msg },
-                    "locations": f.endpoint.as_ref().map(|ep| {
-                        serde_json::json!([{
-                            "logicalLocations": [{
-                                "name": ep,
-                                "kind": "namespace"
-                            }]
-                        }])
-                    }).unwrap_or(serde_json::json!([]))
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": "config.yaml",
+                                "uriBaseId": "%SRCROOT%"
+                            }
+                        },
+                        "logicalLocations": [{
+                            "name": endpoint_name,
+                            "kind": "namespace"
+                        }]
+                    }]
                 })
             })
             .collect();
