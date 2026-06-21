@@ -31,10 +31,7 @@ impl Config {
 /// Replace ${VAR_NAME} placeholders with environment variable values.
 fn expand_env_vars(s: &str) -> String {
     let mut result = s.to_string();
-    loop {
-        let Some(start) = result.find("${") else {
-            break;
-        };
+    while let Some(start) = result.find("${") {
         let Some(end_offset) = result[start..].find('}') else {
             break;
         };

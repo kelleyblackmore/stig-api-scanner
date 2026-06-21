@@ -202,10 +202,10 @@ impl<'a> Reporter<'a> {
         let results: Vec<serde_json::Value> = result
             .findings
             .iter()
-            .filter_map(|f| {
+            .map(|f| {
                 let kind = sarif_kind(&f.status);
                 let level = sarif_level(&f.severity);
-                Some(serde_json::json!({
+                serde_json::json!({
                     "ruleId": f.stig_id,
                     "kind": kind,
                     "level": level,
@@ -223,7 +223,7 @@ impl<'a> Reporter<'a> {
                     "fixes": [{
                         "description": { "text": f.fix }
                     }]
-                }))
+                })
             })
             .collect();
 
