@@ -1,3 +1,4 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — Token & Session Management
 ///
 /// V-274678 (MED): API must configure tokens for stateless authentication (expiry + vault storage).
@@ -8,7 +9,6 @@
 /// V-274606 (MED): API implementation must use FIPS-validated encryption/hashing for keys.
 /// V-274783 (MED): API must use FIPS-validated cryptography for token signatures.
 use async_trait::async_trait;
-use anyhow::Result;
 use base64::Engine as _;
 
 use crate::{
@@ -36,9 +36,7 @@ fn decode_jwt_payload(token: &str) -> Option<serde_json::Value> {
     };
     let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload)
-        .or_else(|_| {
-            base64::engine::general_purpose::URL_SAFE.decode(&padded)
-        })
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(&padded))
         .ok()?;
     serde_json::from_slice(&decoded).ok()
 }
@@ -153,16 +151,12 @@ impl Check for TokensCheck {
                         };
                         let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
                             .decode(raw_header)
-                            .or_else(|_| {
-                                base64::engine::general_purpose::URL_SAFE.decode(&padded)
-                            })
+                            .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(&padded))
                             .ok();
                         decoded
                             .as_deref()
                             .and_then(|b| serde_json::from_slice::<serde_json::Value>(b).ok())
-                            .and_then(|v| {
-                                v.get("alg").and_then(|a| a.as_str()).map(String::from)
-                            })
+                            .and_then(|v| v.get("alg").and_then(|a| a.as_str()).map(String::from))
                     };
 
                     match header_alg.as_deref() {
@@ -179,9 +173,18 @@ impl Check for TokensCheck {
                             );
                         }
                         Some(alg) => {
-                            let is_fips = matches!(alg, "RS256" | "RS384" | "RS512"
-                                | "ES256" | "ES384" | "ES512"
-                                | "PS256" | "PS384" | "PS512");
+                            let is_fips = matches!(
+                                alg,
+                                "RS256"
+                                    | "RS384"
+                                    | "RS512"
+                                    | "ES256"
+                                    | "ES384"
+                                    | "ES512"
+                                    | "PS256"
+                                    | "PS384"
+                                    | "PS512"
+                            );
                             if is_fips {
                                 findings.push(
                                     Finding::pass(

@@ -1,3 +1,4 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — Security Response Headers
 ///
 /// V-274600 (MED): API must protect Session IDs (covered in transport.rs for HSTS).
@@ -6,7 +7,6 @@
 /// Additional baseline security headers derived from OWASP / NIST SP 800-53 SA-11:
 ///   X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy
 use async_trait::async_trait;
-use anyhow::Result;
 use reqwest::Response;
 
 use crate::{

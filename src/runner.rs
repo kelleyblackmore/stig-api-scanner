@@ -37,7 +37,11 @@ impl Runner {
             match check.run(&self.client, &self.config).await {
                 Ok(mut f) => findings.append(&mut f),
                 Err(e) => {
-                    eprintln!("[warn] check '{}' encountered an error: {}", check.name(), e);
+                    eprintln!(
+                        "[warn] check '{}' encountered an error: {}",
+                        check.name(),
+                        e
+                    );
                 }
             }
         }

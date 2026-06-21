@@ -1,10 +1,10 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — CORS Policy
 ///
 /// V-274613 (MED): The API must specify allowed origins when using CORS.
 ///   Access-Control-Allow-Origin must not be a wildcard (*) unless the API is
 ///   intentionally public and does not use cookies or credentials.
 use async_trait::async_trait;
-use anyhow::Result;
 
 use crate::{
     checks::Check,

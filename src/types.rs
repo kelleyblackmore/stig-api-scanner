@@ -149,9 +149,18 @@ pub struct ScanResult {
 impl ScanResult {
     pub fn new(target: String, timestamp: String, findings: Vec<Finding>) -> Self {
         let total = findings.len();
-        let passed = findings.iter().filter(|f| f.status == FindingStatus::Pass).count();
-        let failed = findings.iter().filter(|f| f.status == FindingStatus::Fail).count();
-        let manual = findings.iter().filter(|f| f.status == FindingStatus::Manual).count();
+        let passed = findings
+            .iter()
+            .filter(|f| f.status == FindingStatus::Pass)
+            .count();
+        let failed = findings
+            .iter()
+            .filter(|f| f.status == FindingStatus::Fail)
+            .count();
+        let manual = findings
+            .iter()
+            .filter(|f| f.status == FindingStatus::Manual)
+            .count();
         let skipped = findings
             .iter()
             .filter(|f| {
@@ -160,6 +169,15 @@ impl ScanResult {
                     || f.status == FindingStatus::Error
             })
             .count();
-        Self { findings, target, timestamp, total, passed, failed, manual, skipped }
+        Self {
+            findings,
+            target,
+            timestamp,
+            total,
+            passed,
+            failed,
+            manual,
+            skipped,
+        }
     }
 }

@@ -94,9 +94,10 @@ async fn main() -> Result<()> {
         .parse()
         .unwrap_or(types::Severity::High);
 
-    let has_failures = result.findings.iter().any(|f| {
-        f.status == FindingStatus::Fail && f.severity >= fail_threshold
-    });
+    let has_failures = result
+        .findings
+        .iter()
+        .any(|f| f.status == FindingStatus::Fail && f.severity >= fail_threshold);
 
     if has_failures {
         process::exit(config.pipeline.exit_code_on_fail);
@@ -112,7 +113,10 @@ fn print_checks() {
             "transport",
             &[
                 ("V-274710", "TLS 1.2+ required (HIGH)"),
-                ("V-274497", "Encrypt data in transit / HTTP->HTTPS redirect (MED)"),
+                (
+                    "V-274497",
+                    "Encrypt data in transit / HTTP->HTTPS redirect (MED)",
+                ),
                 ("V-274600", "Protect Session IDs -- HSTS (MED)"),
             ],
         ),
@@ -132,8 +136,14 @@ fn print_checks() {
         (
             "auth",
             &[
-                ("V-274557", "Auth-required endpoints reject unauthenticated requests (MED)"),
-                ("V-274507", "Access control enforced (authed != unauthed) (MED)"),
+                (
+                    "V-274557",
+                    "Auth-required endpoints reject unauthenticated requests (MED)",
+                ),
+                (
+                    "V-274507",
+                    "Access control enforced (authed != unauthed) (MED)",
+                ),
                 ("V-274559", "DoD ICAM solution -- manual (MED)"),
                 ("V-274643", "Privileged access restricted -- manual (MED)"),
                 ("V-274672", "Periodic reauthentication -- manual (MED)"),
@@ -145,7 +155,10 @@ fn print_checks() {
             &[
                 ("V-274680", "Access token lifetime <= 30 min (MED)"),
                 ("V-274712", "Audience claim present in JWT (MED)"),
-                ("V-274678", "Token alg != none; secrets in vault -- manual (MED)"),
+                (
+                    "V-274678",
+                    "Token alg != none; secrets in vault -- manual (MED)",
+                ),
                 ("V-274783", "FIPS-validated signing algorithm (MED)"),
                 ("V-274681", "Refresh token TTL <= 90 days -- manual (MED)"),
                 ("V-274603", "API keys from FIPS RNG -- manual (MED)"),
@@ -156,9 +169,15 @@ fn print_checks() {
             "rate_limit",
             &[
                 ("V-274612", "Rate-limit headers present (MED)"),
-                ("V-274682", "Active 429 enforcement (when probe_count > 0) (MED)"),
+                (
+                    "V-274682",
+                    "Active 429 enforcement (when probe_count > 0) (MED)",
+                ),
                 ("V-274525", "Audit rate-limit events -- manual (MED)"),
-                ("V-274526", "Gateway audit rate-limit events -- manual (MED)"),
+                (
+                    "V-274526",
+                    "Gateway audit rate-limit events -- manual (MED)",
+                ),
             ],
         ),
         (
@@ -171,12 +190,18 @@ fn print_checks() {
         ),
         (
             "error_handling",
-            &[("V-274615", "Error responses do not leak stack traces / paths (MED)")],
+            &[(
+                "V-274615",
+                "Error responses do not leak stack traces / paths (MED)",
+            )],
         ),
         (
             "cache",
             &[
-                ("V-274607", "Cache-Control prevents caching sensitive data (HIGH)"),
+                (
+                    "V-274607",
+                    "Cache-Control prevents caching sensitive data (HIGH)",
+                ),
                 ("V-274709", "Pagination / data volume restriction (HIGH)"),
                 ("V-274677", "Cache invalidation mechanism present (MED)"),
             ],
@@ -184,7 +209,11 @@ fn print_checks() {
     ];
 
     for (check, controls) in checks {
-        println!("  {} (disable in config: checks.{}: false)", check.to_uppercase(), check);
+        println!(
+            "  {} (disable in config: checks.{}: false)",
+            check.to_uppercase(),
+            check
+        );
         for (id, desc) in *controls {
             println!("    {:<12} {}", id, desc);
         }

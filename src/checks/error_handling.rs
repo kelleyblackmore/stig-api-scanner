@@ -1,8 +1,8 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — Error Handling & Information Disclosure
 ///
 /// V-274615 (MED): The API must not disclose sensitive data in error messages.
 use async_trait::async_trait;
-use anyhow::Result;
 
 use crate::{
     checks::Check,
@@ -61,7 +61,10 @@ pub struct ErrorHandlingCheck;
 
 async fn probe_error_response(client: &HttpClient, path: &str) -> Option<(u16, String)> {
     // Try a 404 path
-    let not_found_path = format!("{}/stig-scanner-nonexistent-probe-12345", path.trim_end_matches('/'));
+    let not_found_path = format!(
+        "{}/stig-scanner-nonexistent-probe-12345",
+        path.trim_end_matches('/')
+    );
     if let Ok(resp) = client.get_unauthed(&not_found_path).await {
         let status = resp.status().as_u16();
         let body = resp.bytes().await.unwrap_or_default();
@@ -84,7 +87,11 @@ impl Check for ErrorHandlingCheck {
     async fn run(&self, client: &HttpClient, config: &Config) -> Result<Vec<Finding>> {
         let mut findings = Vec::new();
 
-        let probe_base = config.endpoints.first().map(|e| e.path.as_str()).unwrap_or("/");
+        let probe_base = config
+            .endpoints
+            .first()
+            .map(|e| e.path.as_str())
+            .unwrap_or("/");
 
         // --- Probe 1: 404 path ---
         if let Some((status, body)) = probe_error_response(client, probe_base).await {
@@ -138,9 +145,11 @@ impl Check for ErrorHandlingCheck {
         }
 
         // --- Probe 2: Malformed JSON body on POST endpoints ---
-        for ep in config.endpoints.iter().filter(|e| {
-            e.methods.iter().any(|m| m.eq_ignore_ascii_case("POST"))
-        }) {
+        for ep in config
+            .endpoints
+            .iter()
+            .filter(|e| e.methods.iter().any(|m| m.eq_ignore_ascii_case("POST")))
+        {
             let malformed = serde_json::json!({"__stig_probe": null, "': DROP TABLE": 1});
             if let Ok(resp) = client.post_json(&ep.path, &malformed).await {
                 let status = resp.status().as_u16();

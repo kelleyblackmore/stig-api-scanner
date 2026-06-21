@@ -1,10 +1,10 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — Transport Security
 ///
 /// V-274710 (HIGH): The API must use TLS version 1.2 at minimum.
 /// V-274497 (MED):  The API must encrypt data in transit.
 /// V-274600 (MED):  The API must protect Session IDs (SSL/TLS).
 use async_trait::async_trait;
-use anyhow::Result;
 
 use crate::{
     checks::Check,
@@ -136,10 +136,7 @@ impl Check for TransportCheck {
                             Severity::Medium,
                             "Strict-Transport-Security is configured.",
                         )
-                        .with_evidence(
-                            hsts.and_then(|v| v.to_str().ok())
-                                .unwrap_or("(present)"),
-                        ),
+                        .with_evidence(hsts.and_then(|v| v.to_str().ok()).unwrap_or("(present)")),
                     );
                 } else {
                     findings.push(

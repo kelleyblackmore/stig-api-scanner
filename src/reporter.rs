@@ -44,11 +44,7 @@ impl<'a> Reporter<'a> {
             "\n{}",
             "══════════════════════════════════════════════════════════════".cyan()
         )?;
-        writeln!(
-            out,
-            "  {} — DISA API SRG V1R0.1",
-            "STIG API SCANNER".bold()
-        )?;
+        writeln!(out, "  {} — DISA API SRG V1R0.1", "STIG API SCANNER".bold())?;
         writeln!(out, "  Target   : {}", result.target.cyan())?;
         writeln!(out, "  Timestamp: {}", result.timestamp)?;
         writeln!(
@@ -79,11 +75,7 @@ impl<'a> Reporter<'a> {
             "──────────────────────────────────────────────────────────────".dimmed()
         )?;
         writeln!(out, "  SUMMARY")?;
-        writeln!(
-            out,
-            "    Total   : {}",
-            result.total.to_string().bold()
-        )?;
+        writeln!(out, "    Total   : {}", result.total.to_string().bold())?;
         writeln!(
             out,
             "    {}",

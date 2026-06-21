@@ -1,0 +1,55 @@
+# stig-api-scanner config for the bundled test-api example server.
+# Used by the GitHub Actions CI workflow.
+#
+# The test server runs with a self-signed certificate, so verify_tls is false.
+# Bearer token is injected via the TEST_BEARER_TOKEN env var.
+
+target:
+  base_url: "https://127.0.0.1:8443"
+  timeout_seconds: 10
+  verify_tls: false            # self-signed cert in CI
+
+auth:
+  type: bearer
+  bearer_token: "${TEST_BEARER_TOKEN}"
+
+endpoints:
+  - path: "/api/v1/health"
+    methods: ["GET"]
+    auth_required: false
+    tags: ["public", "health"]
+
+  - path: "/api/v1/users"
+    methods: ["GET", "POST"]
+    auth_required: true
+    tags: ["users"]
+
+  - path: "/api/v1/admin/config"
+    methods: ["GET"]
+    auth_required: true
+    tags: ["admin", "privileged"]
+
+checks:
+  transport: true
+  cors: true
+  auth: true
+  tokens: false                # no JWT bearer — opaque test token
+  rate_limiting: true
+  input_validation: true
+  error_handling: true
+  cache: true
+  headers: true
+  allowed_origins: []          # expect no CORS (wildcard will be flagged)
+  rate_limit_probe_count: 0    # disabled — don't hammer the test server
+
+report:
+  format: text
+  include_passed: true
+  verbose: false
+
+pipeline:
+  # CI gate: only fail on CRITICAL. The test server intentionally has MEDIUM/HIGH
+  # findings (missing headers, wildcard CORS) — those appear in SARIF but don't
+  # block the pipeline, so you can see the scanner working without a red CI run.
+  fail_severity: critical
+  exit_code_on_fail: 1

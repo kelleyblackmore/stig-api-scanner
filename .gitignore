@@ -1,5 +1,11 @@
 /target/
-config.yaml
+# Root-level config (contains secrets) — copy config.example.yaml to get started
+/config.yaml
 stig-report*
+stig-results*
+stig-junit*
 .env
 *.local.yaml
+# Generated TLS certs from setup.sh / CI
+examples/test-api/cert.pem
+examples/test-api/key.pem

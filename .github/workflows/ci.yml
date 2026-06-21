@@ -1,0 +1,233 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Token expected by the test API server
+  TEST_BEARER_TOKEN: stig-test-token
+
+jobs:
+  # ── Job 1: Rust build + lint ──────────────────────────────────────────────
+  build:
+    name: Build & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry & build artefacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo build --release
+        run: cargo build --release
+
+      - name: Upload scanner binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: stig-api-scanner-linux
+          path: target/release/stig-api-scanner
+          retention-days: 7
+
+  # ── Job 2: STIG scan against the bundled example API ─────────────────────
+  stig-scan:
+    name: STIG scan (example API)
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      # Required for uploading SARIF to the GitHub Security tab
+      security-events: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download scanner binary
+        uses: actions/download-artifact@v4
+        with:
+          name: stig-api-scanner-linux
+          path: ./bin
+
+      - name: Make binary executable
+        run: chmod +x ./bin/stig-api-scanner
+
+      # Generate a self-signed TLS cert for the test server
+      - name: Generate self-signed TLS certificate
+        working-directory: examples/test-api
+        run: |
+          openssl req -x509 -newkey rsa:2048 \
+            -keyout key.pem -out cert.pem \
+            -days 1 -nodes \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=IP:127.0.0.1,DNS:localhost"
+
+      - name: Start example API server
+        working-directory: examples/test-api
+        run: |
+          API_TOKEN="${TEST_BEARER_TOKEN}" \
+          TLS_CERT=cert.pem \
+          TLS_KEY=key.pem \
+          PORT=8443 \
+          python3 server.py &
+          echo $! > /tmp/test-api.pid
+          echo "Server PID: $(cat /tmp/test-api.pid)"
+
+      - name: Wait for server to be ready
+        run: |
+          echo "Waiting for test API to accept connections..."
+          for i in $(seq 1 15); do
+            if curl -sk --max-time 2 https://127.0.0.1:8443/api/v1/health > /dev/null 2>&1; then
+              echo "Server is ready (attempt $i)"
+              exit 0
+            fi
+            echo "  attempt $i — not ready yet"
+            sleep 1
+          done
+          echo "Server did not start in time" >&2
+          exit 1
+
+      # ── Scan run 1: full text report (CI log) ────────────────────────────
+      - name: Run STIG scan — text output
+        run: |
+          ./bin/stig-api-scanner \
+            --config examples/test-api/stig-config.yaml \
+            --include-passed \
+            --verbose \
+            || true
+        env:
+          TEST_BEARER_TOKEN: ${{ env.TEST_BEARER_TOKEN }}
+
+      # ── Scan run 2: JSON report (artifact + summary) ──────────────────────
+      - name: Run STIG scan — JSON report
+        run: |
+          ./bin/stig-api-scanner \
+            --config examples/test-api/stig-config.yaml \
+            --format json \
+            --output stig-report.json \
+            --include-passed \
+            || true
+        env:
+          TEST_BEARER_TOKEN: ${{ env.TEST_BEARER_TOKEN }}
+
+      # ── Scan run 3: SARIF (GitHub Security tab) ───────────────────────────
+      - name: Run STIG scan — SARIF output
+        run: |
+          ./bin/stig-api-scanner \
+            --config examples/test-api/stig-config.yaml \
+            --format sarif \
+            --output stig-results.sarif \
+            || true
+        env:
+          TEST_BEARER_TOKEN: ${{ env.TEST_BEARER_TOKEN }}
+
+      # ── Scan run 4: JUnit XML ─────────────────────────────────────────────
+      - name: Run STIG scan — JUnit XML
+        run: |
+          ./bin/stig-api-scanner \
+            --config examples/test-api/stig-config.yaml \
+            --format junit \
+            --output stig-junit.xml \
+            --include-passed \
+            || true
+        env:
+          TEST_BEARER_TOKEN: ${{ env.TEST_BEARER_TOKEN }}
+
+      # ── Print summary to job log ──────────────────────────────────────────
+      - name: Print scan summary
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+          try:
+              with open("stig-report.json") as f:
+                  r = json.load(f)
+          except Exception as e:
+              print(f"Could not read report: {e}")
+              sys.exit(0)
+
+          print(f"\n{'='*60}")
+          print(f"  STIG API Scan Summary")
+          print(f"  Target   : {r['target']}")
+          print(f"  Timestamp: {r['timestamp']}")
+          print(f"{'='*60}")
+          print(f"  Total   : {r['total']}")
+          print(f"  Passed  : {r['passed']}")
+          print(f"  Failed  : {r['failed']}")
+          print(f"  Manual  : {r['manual']}")
+          print(f"  Skipped : {r['skipped']}")
+          print(f"{'='*60}")
+
+          failures = [f for f in r['findings'] if f['status'] == 'fail']
+          if failures:
+              print(f"\n  Findings requiring remediation ({len(failures)}):")
+              for f in failures:
+                  print(f"    [{f['severity'].upper():8}] {f['stig_id']} — {f['title']}")
+          print()
+          EOF
+
+      # ── Upload SARIF to GitHub Security tab ──────────────────────────────
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: stig-results.sarif
+          category: stig-api-scan
+
+      # ── Publish JUnit results ─────────────────────────────────────────────
+      - name: Publish JUnit test results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: stig-junit.xml
+          check_name: STIG API Scan Results
+          fail_on_failure: false
+          include_passed: true
+
+      # ── Upload all report artefacts ───────────────────────────────────────
+      - name: Upload scan artefacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stig-scan-reports
+          path: |
+            stig-report.json
+            stig-results.sarif
+            stig-junit.xml
+          retention-days: 30
+
+      # ── Stop the test server ──────────────────────────────────────────────
+      - name: Stop test API server
+        if: always()
+        run: |
+          if [[ -f /tmp/test-api.pid ]]; then
+            kill "$(cat /tmp/test-api.pid)" 2>/dev/null || true
+          fi
+
+      # ── Pipeline gate: fail the job if CRITICAL findings exist ────────────
+      - name: Pipeline gate — fail on CRITICAL findings
+        run: |
+          ./bin/stig-api-scanner \
+            --config examples/test-api/stig-config.yaml \
+            --fail-severity critical
+        env:
+          TEST_BEARER_TOKEN: ${{ env.TEST_BEARER_TOKEN }}

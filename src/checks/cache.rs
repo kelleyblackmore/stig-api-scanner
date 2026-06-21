@@ -1,3 +1,4 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — Cache Security
 ///
 /// V-274607 (HIGH): The API must encrypt sensitive cached data.
@@ -5,7 +6,6 @@
 /// V-274709 (HIGH): The amount of data returned by the API must be restricted
 ///                  (pagination / field filtering).
 use async_trait::async_trait;
-use anyhow::Result;
 
 use crate::{
     checks::Check,

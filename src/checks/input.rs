@@ -1,3 +1,4 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — Input Validation & Output Encoding
 ///
 /// V-274714 (MED): The API must use parameterized queries (SQL injection prevention).
@@ -8,7 +9,6 @@
 /// executing destructive operations. Payloads are chosen to trigger detectable error
 /// patterns without causing data modification.
 use async_trait::async_trait;
-use anyhow::Result;
 
 use crate::{
     checks::Check,
@@ -153,7 +153,10 @@ impl Check for InputValidationCheck {
                         findings.push(
                             Finding::fail(
                                 probe.stig_id,
-                                &format!("{} — vulnerable pattern detected in response", probe.name),
+                                &format!(
+                                    "{} — vulnerable pattern detected in response",
+                                    probe.name
+                                ),
                                 probe.severity.clone(),
                                 probe.fix,
                             )

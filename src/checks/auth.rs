@@ -1,3 +1,4 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — Authentication & Authorization
 ///
 /// V-274507 (MED): API must use approved authorizations for access control.
@@ -7,7 +8,6 @@
 /// V-274672 (MED): API must require periodic reauthentication.
 /// V-274679 (MED): API's internal tokens must not be provided to users.
 use async_trait::async_trait;
-use anyhow::Result;
 
 use crate::{
     checks::Check,

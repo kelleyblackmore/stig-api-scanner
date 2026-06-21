@@ -88,7 +88,9 @@ impl HttpClient {
     pub fn http_url(&self, path: &str) -> Result<String> {
         let url_str = self.full_url(path);
         let mut parsed = Url::parse(&url_str)?;
-        parsed.set_scheme("http").map_err(|_| anyhow::anyhow!("Cannot set scheme to http"))?;
+        parsed
+            .set_scheme("http")
+            .map_err(|_| anyhow::anyhow!("Cannot set scheme to http"))?;
         Ok(parsed.to_string())
     }
 
@@ -127,7 +129,12 @@ impl HttpClient {
 
     /// POST JSON body with auth.
     pub async fn post_json(&self, path: &str, body: &serde_json::Value) -> Result<Response> {
-        Ok(self.authed.post(self.full_url(path)).json(body).send().await?)
+        Ok(self
+            .authed
+            .post(self.full_url(path))
+            .json(body)
+            .send()
+            .await?)
     }
 
     /// Send N rapid sequential requests to the same endpoint (rate-limit probing).
@@ -139,5 +146,4 @@ impl HttpClient {
         }
         results
     }
-
 }

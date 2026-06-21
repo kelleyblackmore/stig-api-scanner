@@ -32,11 +32,20 @@ impl Config {
 fn expand_env_vars(s: &str) -> String {
     let mut result = s.to_string();
     loop {
-        let Some(start) = result.find("${") else { break };
-        let Some(end_offset) = result[start..].find('}') else { break };
+        let Some(start) = result.find("${") else {
+            break;
+        };
+        let Some(end_offset) = result[start..].find('}') else {
+            break;
+        };
         let var_name = result[start + 2..start + end_offset].to_string();
         let value = env::var(&var_name).unwrap_or_default();
-        result = format!("{}{}{}", &result[..start], value, &result[start + end_offset + 1..]);
+        result = format!(
+            "{}{}{}",
+            &result[..start],
+            value,
+            &result[start + end_offset + 1..]
+        );
     }
     result
 }
@@ -185,7 +194,10 @@ pub struct PipelineConfig {
 
 impl Default for PipelineConfig {
     fn default() -> Self {
-        Self { fail_severity: "high".to_string(), exit_code_on_fail: 1 }
+        Self {
+            fail_severity: "high".to_string(),
+            exit_code_on_fail: 1,
+        }
     }
 }
 

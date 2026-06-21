@@ -1,3 +1,4 @@
+use anyhow::Result;
 /// DISA API SRG V1R0.1 — Rate Limiting & Throttling
 ///
 /// V-274612 (MED): The API must employ throttling.
@@ -5,7 +6,6 @@
 /// V-274526 (MED): The API Gateway must audit rate-limiting events.
 /// V-274682 (MED): API keys must have rate limits configured.
 use async_trait::async_trait;
-use anyhow::Result;
 
 use crate::{
     checks::Check,
@@ -41,7 +41,11 @@ impl Check for RateLimitCheck {
     async fn run(&self, client: &HttpClient, config: &Config) -> Result<Vec<Finding>> {
         let mut findings = Vec::new();
 
-        let probe_path = config.endpoints.first().map(|e| e.path.as_str()).unwrap_or("/");
+        let probe_path = config
+            .endpoints
+            .first()
+            .map(|e| e.path.as_str())
+            .unwrap_or("/");
 
         // --- V-274612 / V-274682: Check for rate-limit response headers ---
         match client.get(probe_path).await {
