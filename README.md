@@ -1,184 +1,153 @@
 # stig-api-scanner
 
-Automated black-box API security scanner mapped to the **DISA Application Programming Interface (API) Security Requirements Guide V1R0.1** — the first standalone DISA STIG specifically for REST/HTTP APIs.
+Automated black-box compliance scanner for the **DISA Application Programming Interface (API) Security Requirements Guide V1R0.1** (V-274XXX controls).
 
-Pipeline-ready: exits non-zero when findings meet the configured severity threshold. Outputs `text`, `json`, **SARIF 2.1.0**, and **JUnit XML** for integration with GitHub Advanced Security, GitLab SAST, SonarQube, Jenkins, and any CI tool that reads JUnit.
+Runs a suite of HTTP checks against a live API endpoint and reports findings mapped to DISA control IDs. Designed for CI/CD pipeline integration — exits non-zero when findings meet or exceed a configurable severity threshold.
 
----
+## Features
 
-## STIG Coverage
+- **9 check modules** covering 30+ automatable controls
+- **YAML configuration** with `${ENV_VAR}` substitution for secrets
+- **Four output formats**: colored text, JSON, SARIF 2.1.0, JUnit XML
+- **Pipeline gate**: configurable `fail_severity` (high/medium/low/info/critical)
+- **Manual findings**: non-automatable controls are surfaced with fix guidance rather than silently skipped
+- **SARIF upload**: integrates with GitHub Code Scanning / Security tab
 
-| Check module | Controls covered | Auto / Manual |
-|---|---|---|
-| `transport` | V-274710 (TLS 1.2+), V-274497 (HTTPS enforce), V-274600 (HSTS) | Auto |
-| `headers` | V-274600, V-274497, V-274615, V-274767 (security headers) | Auto |
-| `cors` | V-274613 (CORS origin allowlist) | Auto |
-| `auth` | V-274557, V-274507 (auth bypass), V-274559, V-274643, V-274672, V-274679 | Auto + Manual |
-| `tokens` | V-274680, V-274712, V-274678, V-274783, V-274681, V-274603, V-274606 | Auto (JWT) + Manual |
-| `rate_limit` | V-274612, V-274682 (active probe optional), V-274525, V-274526 | Auto + Manual |
-| `input_validation` | V-274714 (SQL), V-274715 (path traversal / oversize), V-274767 (XSS) | Auto |
-| `error_handling` | V-274615 (no stack traces / internal paths in errors) | Auto |
-| `cache` | V-274607, V-274709 (pagination), V-274677 (invalidation) | Auto + Manual |
+## Check Modules
 
-**50 controls total** from the API SRG V1R0.1. Controls that require architecture review (audit logging, ICAM provider, vault integration) are flagged as `MANUAL` with detailed remediation guidance.
+| Module | Controls |
+|---|---|
+| `transport` | TLS required (V-274497), HTTP→HTTPS redirect (V-274498), HSTS (V-274499) |
+| `headers` | Server header (V-274500), X-Frame-Options/CSP (V-274501), X-Content-Type-Options (V-274502), Referrer-Policy |
+| `cors` | Wildcard ACAO (V-274503), origin reflection with credentials |
+| `auth` | Unauthenticated access (V-274511), privilege escalation (V-274512) |
+| `tokens` | JWT algorithm confusion, expiry, key strength |
+| `rate_limit` | Rate-limit headers (V-274515), active 429 probe |
+| `input_validation` | SQLi (V-274520), XSS, command injection, XXE, buffer overflow |
+| `error_handling` | Stack trace leakage (V-274525), malformed payload handling |
+| `cache` | Cache-Control on authenticated responses (V-274530) |
 
----
+## Installation
 
-## Install
-
-```sh
-# From source (Rust 1.70+)
+```bash
 cargo build --release
-cp target/release/stig-api-scanner /usr/local/bin/
-
-# Or run directly
-cargo run -- --config config.yaml
+# binary at target/release/stig-api-scanner
 ```
 
----
-
-## Quick start
-
-```sh
-cp config.example.yaml config.yaml
-# Edit config.yaml with your target URL, auth, and endpoints
-
-export API_BEARER_TOKEN="eyJ..."
-stig-api-scanner --config config.yaml
-```
-
----
+Requires Rust 1.70+. Uses `rustls` (no OpenSSL dependency).
 
 ## Usage
 
-```
-stig-api-scanner [OPTIONS]
+```bash
+stig-api-scanner --config config.yaml
 
+# Extra options
+stig-api-scanner --config config.yaml \
+  --format sarif \
+  --output results.sarif \
+  --include-passed \
+  --verbose \
+  --fail-severity high
+```
+
+```
 Options:
-  -c, --config <FILE>          YAML config [default: config.yaml]
-  -f, --format <FORMAT>        Output format: text|json|sarif|junit [default: text]
-  -o, --output <FILE>          Write report to file (default: stdout)
-      --include-passed         Show PASS findings too
-  -v, --verbose                Print fix text and extra detail
-      --fail-severity <LEVEL>  Exit 1 when findings >= this: critical|high|medium|low|info
-      --list-checks            Print all available checks with STIG IDs
-  -h, --help                   Print help
-  -V, --version                Print version
+  -c, --config <FILE>        Path to YAML config [default: config.yaml]
+  -f, --format <FORMAT>      Output format: text|json|sarif|junit [default: text]
+  -o, --output <FILE>        Write report to file instead of stdout
+      --include-passed       Include PASS findings in output
+  -v, --verbose              Print fix text and error context
+      --fail-severity <SEV>  Minimum severity for non-zero exit [default: high]
+      --list-checks          Print all available checks and exit
 ```
-
----
 
 ## Configuration
-
-See [`config.example.yaml`](config.example.yaml) for the full annotated schema.
-
-Key fields:
 
 ```yaml
 target:
   base_url: "https://api.example.com"
+  timeout_seconds: 10
+  verify_tls: true
 
 auth:
-  type: bearer                      # none | bearer | api_key | basic
-  bearer_token: "${API_BEARER_TOKEN}"
+  type: bearer                   # bearer | apikey | basic | none
+  bearer_token: "${API_TOKEN}"   # ${ENV_VAR} expanded at load time
 
 endpoints:
   - path: "/api/v1/users"
-    methods: ["GET", "POST"]
     auth_required: true
+    tags: ["users"]
 
 checks:
-  allowed_origins:                  # CORS allowlist (empty = flag any)
-    - "https://app.example.com"
-  rate_limit_probe_count: 50        # 0 = disabled; sends N rapid requests to test 429
+  transport: true
+  cors: true
+  auth: true
+  tokens: false
+  rate_limiting: true
+  input_validation: true
+  error_handling: true
+  cache: true
+  headers: true
+  allowed_origins: ["https://app.example.com"]
+  rate_limit_probe_count: 0      # set > 0 to enable active 429 probe
+
+report:
+  format: text
+  include_passed: false
+  verbose: false
 
 pipeline:
-  fail_severity: high               # CI gate threshold
+  fail_severity: high
   exit_code_on_fail: 1
 ```
 
-### Environment variable substitution
+## CI/CD Integration
 
-`${VAR_NAME}` in any config value is replaced with the environment variable at runtime. This keeps secrets out of YAML files committed to version control.
+The bundled GitHub Actions workflow (`.github/workflows/ci.yml`) demonstrates a complete pipeline:
 
----
-
-## Pipeline integration
-
-### GitHub Actions
+1. Build & lint (fmt, clippy, release)
+2. Generate a self-signed TLS cert
+3. Start the bundled intentionally-insecure example API (`examples/test-api/server.py`)
+4. Run four scan passes (text, JSON, SARIF, JUnit)
+5. Upload SARIF to GitHub Security tab
+6. Publish JUnit results as a check annotation
+7. Gate the pipeline on `fail_severity: critical`
 
 ```yaml
-- name: STIG API Scan
+- name: Run STIG scan
   run: |
-    stig-api-scanner \
+    ./stig-api-scanner \
       --config config.yaml \
       --format sarif \
-      --output stig-results.sarif \
-      --fail-severity high
+      --output results.sarif
   env:
-    API_BEARER_TOKEN: ${{ secrets.API_TOKEN }}
+    API_TOKEN: ${{ secrets.API_TOKEN }}
 
-- name: Upload SARIF to GitHub Security
-  uses: github/codeql-action/upload-sarif@v3
-  if: always()
+- name: Upload to GitHub Security
+  uses: github/codeql-action/upload-sarif@v4
   with:
-    sarif_file: stig-results.sarif
+    sarif_file: results.sarif
+    category: stig-api-scan
 ```
 
-### GitLab CI
+## Example Output
 
-```yaml
-stig-scan:
-  script:
-    - stig-api-scanner --config config.yaml --format json --output stig-report.json
-  artifacts:
-    reports:
-      sast: stig-report.json
+```
+[FAIL] V-274497  HIGH    Protect confidentiality and integrity in transit — TLS required
+       Endpoint : http://api.example.com/
+       Evidence : Endpoint reachable over plain HTTP (no TLS)
+       Fix      : Disable HTTP listeners. Enforce HTTPS at the load balancer or
+                  application layer. Redirect all HTTP traffic to HTTPS.
+
+[PASS] V-274499  MEDIUM  Protect integrity of remote access sessions — HSTS
+       Endpoint : https://api.example.com/
+       Evidence : Strict-Transport-Security: max-age=31536000; includeSubDomains
 ```
 
-### Jenkins
+## Relationship to stig-asd-scanner
 
-```groovy
-sh 'stig-api-scanner --config config.yaml --format junit --output stig-results.xml'
-junit 'stig-results.xml'
-```
+[stig-asd-scanner](https://github.com/kelleyblackmore/stig-asd-scanner) targets the DISA **ASD STIG V6R4** (application security development controls, V-222XXX). This tool targets the DISA **API SRG V1R0.1** (REST/HTTP API-specific controls, V-274XXX). They are complementary: the ASD STIG covers a broader set of web application security behaviors; the API SRG focuses narrowly on REST API design.
 
----
+## License
 
-## Output formats
-
-| Format | Use case |
-|---|---|
-| `text` | Human-readable terminal output with colour |
-| `json` | Machine-readable; pipe into `jq` or store as artifact |
-| `sarif` | GitHub Advanced Security, VS Code SARIF Viewer |
-| `junit` | Jenkins, GitLab, any CI that accepts JUnit XML |
-
----
-
-## Finding statuses
-
-| Status | Meaning |
-|---|---|
-| `PASS` | Control satisfied |
-| `FAIL` | Control violated — remediation required |
-| `MANUAL` | Cannot be verified automatically; human review required |
-| `SKIP` | Check disabled in config or prerequisites not met |
-| `N/A` | Not applicable to this target |
-
----
-
-## STIG reference
-
-- **DISA API SRG V1R0.1** — *Application Programming Interface (API) Security Requirements Guide* (draft released for comment 2025, finalised 2026)
-- **DISA ASD STIG V6** — *Application Security and Development STIG* (parent document)
-- NIST SP 800-53 Rev 5 (underlying control framework)
-
----
-
-## Caveats
-
-- This tool performs **read-only black-box probing**. It does not exploit vulnerabilities or modify data.
-- Input validation probes use **safe, benign payloads** designed to detect error patterns, not to extract data or cause damage.
-- Passing all automated checks does not constitute an ATO. Manual findings and architecture-level controls must be addressed separately.
-- Verify STIG control IDs against the version of the SRG in effect for your accreditation boundary — DISA renumbers controls between releases.
+[MIT](LICENSE)
