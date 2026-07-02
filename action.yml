@@ -1,0 +1,45 @@
+name: 'DISA API SRG Scan'
+description: 'Run stig-api-scanner (DISA API Security Requirements Guide V1R0.1) against a live endpoint and emit SARIF/JUnit for CI.'
+branding:
+  icon: 'shield'
+  color: 'blue'
+inputs:
+  config:
+    description: 'Path to the scanner YAML config (relative to the caller workspace).'
+    required: true
+  format:
+    description: 'Output format: text | json | sarif | junit'
+    required: false
+    default: 'sarif'
+  output:
+    description: 'Write the report to this file.'
+    required: false
+    default: 'stig-api-scanner.sarif'
+  fail-severity:
+    description: 'Minimum finding severity for a non-zero exit: critical | high | medium | low | info'
+    required: false
+    default: 'critical'
+  args:
+    description: 'Extra raw args appended to the scanner invocation (e.g. --include-passed --verbose).'
+    required: false
+    default: ''
+runs:
+  using: 'composite'
+  steps:
+    - name: Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    - name: Cache scanner build
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: ${{ github.action_path }}
+    - name: Build stig-api-scanner
+      shell: bash
+      run: cargo build --release --locked --manifest-path "${{ github.action_path }}/Cargo.toml"
+    - name: Run API SRG scan
+      shell: bash
+      run: |
+        "${{ github.action_path }}/target/release/stig-api-scanner" \
+          --config "${{ inputs.config }}" \
+          --format "${{ inputs.format }}" \
+          --output "${{ inputs.output }}" \
+          --fail-severity "${{ inputs.fail-severity }}" ${{ inputs.args }}
